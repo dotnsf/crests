@@ -75,10 +75,11 @@ function analyze_page1( $area, $pref, $url ){
       if( $td_num == 0 ){
         $tr_of_th = $tr;
       }else{
-        $city_name = $city_img_url = $body = $year = '';
+        $city_name = $city_url = $city_img_url = $body = $year = '';
         switch( $th_num ){
         case 5:  //. 市区, 市区章, 由来, 制定日, 備考
           $city_name = pq($tr)->find("td:eq(0)")->text();
+          $city_url = pq($tr)->find("td:eq(0) a")->attr("href");
           $city_img_url = pq($tr)->find("td:eq(1) a img")->attr("src");
           $body = pq($tr)->find("td:eq(2)")->text();
           $year = pq($tr)->find("td:eq(3)")->text();
@@ -88,6 +89,7 @@ function analyze_page1( $area, $pref, $url ){
           $tmp4 = pq($tr_of_th)->find("th:eq(4)")->text();
           if( $tmp4 == '廃止日' ){
             $city_name = pq($tr)->find("td:eq(0)")->text();
+            $city_url = pq($tr)->find("td:eq(0) a")->attr("href");
             $city_img_url = pq($tr)->find("td:eq(1) a img")->attr("src");
             $body = pq($tr)->find("td:eq(2)")->text();
             $year = pq($tr)->find("td:eq(3)")->text();
@@ -96,11 +98,13 @@ function analyze_page1( $area, $pref, $url ){
             if( strpos( $tmp0, '郡' ) !== false ){
               $county_name = pq($tr)->find("td:eq(0)")->text();
               $city_name = pq($tr)->find("td:eq(1)")->text();
+              $city_url = pq($tr)->find("td:eq(1) a")->attr("href");
               $city_img_url = pq($tr)->find("td:eq(2) a img")->attr("src");
               $body = pq($tr)->find("td:eq(3)")->text();
               $year = pq($tr)->find("td:eq(4)")->text();
             }else{
               $city_name = pq($tr)->find("td:eq(0)")->text();
+              $city_url = pq($tr)->find("td:eq(0) a")->attr("href");
               $city_img_url = pq($tr)->find("td:eq(1) a img")->attr("src");
               $body = pq($tr)->find("td:eq(2)")->text();
               $year = pq($tr)->find("td:eq(3)")->text();
@@ -113,11 +117,13 @@ function analyze_page1( $area, $pref, $url ){
           if( strpos( $tmp0, '郡' ) !== false ){
             $county_name = pq($tr)->find("td:eq(0)")->text();
             $city_name = pq($tr)->find("td:eq(1)")->text();
+            $city_url = pq($tr)->find("td:eq(1) a")->attr("href");
             $city_img_url = pq($tr)->find("td:eq(2) a img")->attr("src");
             $body = pq($tr)->find("td:eq(3)")->text();
             $year = pq($tr)->find("td:eq(4)")->text();
           }else{
             $city_name = pq($tr)->find("td:eq(0)")->text();
+            $city_url = pq($tr)->find("td:eq(0) a")->attr("href");
             $city_img_url = pq($tr)->find("td:eq(1) a img")->attr("src");
             $body = pq($tr)->find("td:eq(2)")->text();
             $year = pq($tr)->find("td:eq(3)")->text();
@@ -126,14 +132,15 @@ function analyze_page1( $area, $pref, $url ){
         }
 
         if( $city_name && $city_img_url ){
-          analyze_page2( trim($area), trim($pref), trim($county_name), trim($city_name), trim($body), trim($year), trim($city_img_url) );
+          analyze_page2( trim($area), trim($pref), trim($county_name), trim($city_name), trim($body), trim($year), trim($city_img_url), trim($city_url) );
         }
       }
     }
   }
 }
 
-function analyze_page2( $area, $pref, $county, $city, $body, $year, $url ){
+function analyze_page2( $area, $pref, $county, $city, $body, $year, $url, $city_url ){
+  global $base_url;
   global $citys;
   global $filename;
 
@@ -149,8 +156,38 @@ function analyze_page2( $area, $pref, $county, $city, $body, $year, $url ){
     }
   }
 
+  //. find city detail
+  $lat = $lng = '';
+  if( $city_url ){
+    $html = file_get_contents($base_url . $city_url);
+    $doc = phpQuery::newDocument($html);
+    $a = $doc["span[title='この位置の地図や航空写真などをリンクするページを表示します']"]->parent();
+    $href = pq($a)->attr('href');
+
+    $params = explode( '&', $href );
+    foreach( $params as $param ){
+      $kv = explode( '=', $param );
+      if( count($kv) == 2 && $kv[0] == 'params' ){
+        //. $kv[1] = '35_54_5.8_N_140_24_19_E_region:JP';
+        $tmp1 = explode( '_N_', $kv[1] );
+        $tmp2 = explode( '_E_', $tmp1[1] );
+
+        $lat = replaceToFloat( $tmp1[0] );
+        $lng = replaceToFloat( $tmp2[0] );
+      }
+    }
+  }
+
   //. $code が入っていないケース＝廃止、合併で吸収された、など
-  $line = $code . "\t" . $area . "\t" . $pref . "\t" . $pref_ruby . "\t" . $county . "\t" . $city . "\t" . $city_ruby . "\t" . $year . "\t" . $body . "\t" . $url . "\n";
+  $line = $code . "\t" . $area . "\t" . $pref . "\t" . $pref_ruby . "\t" . $county . "\t" . $city . "\t" . $city_ruby . "\t" . $year . "\t" . $body . "\t" . $lat . "\t" . $lng . "\t" . $url . "\n";
   file_put_contents( $filename, $line, FILE_APPEND | LOCK_EX );
+}
+
+function replaceToFloat( $ss ){  //. 'NN_NN_N.N'
+  $ss = str_replace( '.', '', $ss );
+  $tmp = explode( '_', $ss );
+
+  $r = $tmp[0] . "." . $tmp[1] . $tmp[2];
+  return floatval($r);
 }
  ?>
