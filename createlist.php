@@ -179,7 +179,7 @@ function analyze_page2( $area, $pref, $county, $city, $body, $year, $url, $city_
   }
 
   //. $code が入っていないケース＝廃止、合併で吸収された、など
-  $line = $code . "\t" . $area . "\t" . $pref . "\t" . $pref_ruby . "\t" . $county . "\t" . $city . "\t" . $city_ruby . "\t" . $year . "\t" . $body . "\t" . $lat . "\t" . $lng . "\t" . $url . "\n";
+  $line = $code . "\t" . $area . "\t" . $pref . "\t" . $pref_ruby . "\t" . $county . "\t" . $city . "\t" . $city_ruby . "\t" . myTrim($year) . "\t" . myTrim($body) . "\t" . $lat . "\t" . $lng . "\t" . $url . "\n";
   file_put_contents( $filename, $line, FILE_APPEND | LOCK_EX );
 }
 
@@ -189,5 +189,9 @@ function replaceToFloat( $ss ){  //. 'NN_NN_N.N'
 
   $r = $tmp[0] . "." . $tmp[1] . $tmp[2];
   return floatval($r);
+}
+
+function myTrim( $str ){
+  return preg_replace( "/\[\d+\]/", "", $str );
 }
  ?>
